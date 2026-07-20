@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usage Analytics — Policy Retriever</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<style>
+  :root {
+    --bg: #FBF6EE;
+    --bg-panel: #FFFFFF;
+    --ink: #2A2018;
+    --ink-soft: #6B5D4F;
+    --amber: #C6791A;
+    --amber-deep: #9C5A0E;
+    --line: #E6DAC5;
+    --good: #4C7A4C;
+    --mid: #B08A2E;
+    --bad: #B0492E;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(198,121,26,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 32px 28px;
+    box-shadow: 0 6px 24px rgba(42,32,24,0.08);
+  }
+
+  .login-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .login-card h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+
+  .login-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+
+  #loginForm {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #loginForm input {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #loginForm input:focus { border-color: var(--amber); }
+
+  #loginForm button {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    padding: 10px 0;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background 0.15s;
+  }
+  #loginForm button:hover { background: var(--amber-deep); }
+
+  .login-error {
+    display: none;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--bad);
+    margin-top: 4px;
+  }
+  .login-error.active { display: block; }
+
+  .access-denied {
+    display: none;
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .access-denied.active { display: block; }
+  .access-denied h2 {
+    font-family: var(--serif);
+    color: var(--bad);
+    margin-bottom: 8px;
+  }
+  .access-denied p {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(198,121,26,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font-family: var(--mono);
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 100%;
+    margin: 0;
+    padding: 40px 48px 80px;
+  }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    position: relative;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: 30px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+
+  .sub {
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .refresh-row {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cache-note {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  .back-link {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .back-link:hover {
+    background: var(--amber);
+    border-color: var(--amber-deep);
+    color: var(--bg);
+  }
+
+  .refresh-btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 16px;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .refresh-btn:hover { background: var(--amber-deep); }
+  .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .headline-card {
+    background: var(--bg-panel);
+    border: 2px solid var(--amber-deep);
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .headline-label {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .headline-sub {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  .headline-value {
+    font-family: var(--serif);
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .headline-value.good { color: var(--good); }
+  .headline-value.mid { color: var(--mid); }
+  .headline-value.bad { color: var(--bad); }
+
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 20px 22px;
+    box-shadow: 0 1px 3px rgba(42,32,24,0.04);
+  }
+
+  .card.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .card h2 {
+    font-family: var(--serif);
+    font-size: 16px;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+
+  .card .card-sub {
+    font-size: 11px;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+
+  .chart-container {
+    position: relative;
+    height: 220px;
+    margin-bottom: 14px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  th {
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+  }
+
+  td { color: var(--ink); }
+
+  .empty-note {
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-style: italic;
+    padding: 12px 0;
+  }
+
+  .loading-state, .error-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+  .error-state { color: var(--bad); display: none; }
+  .error-state.active { display: block; }
+  .loading-state.hidden { display: none; }
+
+  .dot {
+    display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--amber);
+    animation: pulse 1.1s ease-in-out infinite;
+    margin-right: 6px;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  #dashboardContent { display: none; }
+  #dashboardContent.active { display: block; }
+</style>
+</head>
+<body>
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-eyebrow">Usage Analytics</div>
+    <h2>Admin sign in</h2>
+    <p class="login-sub">This dashboard is restricted to admins. Enter your work email and password to continue.</p>
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="XXXXXX" required autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+      <button type="submit" id="loginSubmitBtn">Sign in</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<div class="access-denied" id="accessDenied">
+  <h2>Access denied</h2>
+  <p>Your account does not have admin access to this dashboard.</p>
+</div>
+
+<div class="wrap" id="mainWrap" style="display: none;">
+  <header>
+    <div class="eyebrow">Admin</div>
+    <h1>Usage Analytics</h1>
+    <div class="sub">Weekly &amp; monthly interactions, top users, and cost trends for Policy Retriever.</div>
+    <div class="refresh-row">
+      <a class="back-link" href="index.html">&larr; Back to Chat</a>
+      <span class="cache-note" id="cacheNote"></span>
+      <button class="refresh-btn" id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+
+  <div class="loading-state" id="loadingState">
+    <span class="dot"></span>Loading analytics…
+  </div>
+
+  <div class="error-state" id="errorState"></div>
+
+  <div id="dashboardContent">
+    <div class="headline-card">
+      <div>
+        <div class="headline-label">Cumulative Overall Evaluation Score</div>
+        <div class="headline-sub" id="headlineSub">Across all evaluated responses</div>
+      </div>
+      <div class="headline-value" id="headlineValue">—</div>
+    </div>
+
+    <div class="grid">
+
+      <div class="card full-width">
+        <h2>Overall Score Trend</h2>
+        <div class="card-sub">Weekly average overall evaluation score (%)</div>
+        <div class="chart-container"><canvas id="overallScoreChart"></canvas></div>
+        <table id="overallScoreTable"></table>
+      </div>
+
+      <div class="card">
+        <h2>Weekly Interactions</h2>
+        <div class="card-sub">Total AI interactions per week</div>
+        <div class="chart-container"><canvas id="weeklyChart"></canvas></div>
+        <table id="weeklyTable"></table>
+      </div>
+
+      <div class="card">
+        <h2>Monthly Interactions</h2>
+        <div class="card-sub">Total AI interactions per month</div>
+        <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
+        <table id="monthlyTable"></table>
+      </div>
+
+      <div class="card full-width">
+        <h2>Interactions by Use Case</h2>
+        <div class="card-sub">Weekly breakdown across use cases</div>
+        <div class="chart-container"><canvas id="useCaseChart"></canvas></div>
+        <table id="useCaseTable"></table>
+      </div>
+
+      <div class="card">
+        <h2>Top Users</h2>
+        <div class="card-sub">Most active users, most recent week</div>
+        <div class="chart-container"><canvas id="topUsersChart"></canvas></div>
+        <table id="topUsersTable"></table>
+      </div>
+
+      <div class="card">
+        <h2>Cost Trend</h2>
+        <div class="card-sub">Estimated Bedrock cost (USD) per week</div>
+        <div class="chart-container"><canvas id="costChart"></canvas></div>
+        <table id="costTable"></table>
+      </div>
+
+      <div class="card full-width">
+        <h2>Out-of-Scope Queries</h2>
+        <div class="card-sub">Questions the KB couldn't answer, by user — excluded from the quality score above</div>
+        <div class="chart-container"><canvas id="outOfScopeChart"></canvas></div>
+        <table id="outOfScopeTable"></table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---- CONFIGURE THIS ----
+  const DASHBOARD_API_URL = "XXXXXX";
+  const COGNITO_USER_POOL_ID = "XXXXXX";   
+  const COGNITO_CLIENT_ID    = "XXXXXX"; 
+  const REQUIRED_GROUP = "XXXXXX";
+
+  const poolData = { UserPoolId: COGNITO_USER_POOL_ID, ClientId: COGNITO_CLIENT_ID };
+  const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  let idToken = "";
+
+  const loginOverlay = document.getElementById('loginOverlay');
+  const mainWrap = document.getElementById('mainWrap');
+  const accessDenied = document.getElementById('accessDenied');
+  const loginForm = document.getElementById('loginForm');
+  const loginEmail = document.getElementById('loginEmail');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+  const loginError = document.getElementById('loginError');
+
+  function decodeJwtPayload(token) {
+    try {
+      const payload = token.split('.')[1];
+      return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function handleSuccessfulAuth(result) {
+    idToken = result.getIdToken().getJwtToken();
+    const claims = decodeJwtPayload(idToken);
+    const groups = claims['cognito:groups'] || [];
+
+    loginSubmitBtn.disabled = false;
+    loginSubmitBtn.textContent = 'Sign in';
+    loginOverlay.style.display = 'none';
+
+    if (groups.includes(REQUIRED_GROUP)) {
+      mainWrap.style.display = 'block';
+      accessDenied.classList.remove('active');
+      loadDashboard();
+    } else {
+      accessDenied.classList.add('active');
+      mainWrap.style.display = 'none';
+    }
+  }
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = loginEmail.value.trim();
+    const password = loginPassword.value;
+    if (!email || !password) return;
+
+    loginError.classList.remove('active');
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = 'Signing in…';
+
+    const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: password });
+    const cognitoUser = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
+
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: handleSuccessfulAuth,
+      onFailure: (err) => {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        loginError.textContent = err.message || 'Sign in failed. Check your email and password.';
+        loginError.classList.add('active');
+      },
+      newPasswordRequired: () => {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        const newPassword = prompt('Your password needs to be reset. Enter a new password:');
+        if (newPassword) {
+          cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
+            onSuccess: handleSuccessfulAuth,
+            onFailure: (err) => {
+              loginError.textContent = err.message || 'Password reset failed.';
+              loginError.classList.add('active');
+            }
+          });
+        }
+      }
+    });
+  });
+
+  const loadingState = document.getElementById('loadingState');
+  const errorState = document.getElementById('errorState');
+  const dashboardContent = document.getElementById('dashboardContent');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const cacheNote = document.getElementById('cacheNote');
+
+  const charts = {};
+  const amberPalette = ['#C6791A', '#9C5A0E', '#4C7A4C', '#B08A2E', '#6B5D4F', '#B0492E'];
+
+  function formatWeek(raw) {
+    return raw ? raw.split(' ')[0] : raw;
+  }
+
+  function renderTable(elId, rows, columns) {
+    const el = document.getElementById(elId);
+    if (!rows || rows.length === 0) {
+      el.innerHTML = '<tr><td class="empty-note">No data yet.</td></tr>';
+      return;
+    }
+    const head = '<tr>' + columns.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+    const body = rows.map(row =>
+      '<tr>' + columns.map(c => `<td>${c.format ? c.format(row[c.key]) : row[c.key]}</td>`).join('') + '</tr>'
+    ).join('');
+    el.innerHTML = head + body;
+  }
+
+  function renderLineChart(canvasId, labels, values, label) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (charts[canvasId]) charts[canvasId].destroy();
+    charts[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label,
+          data: values,
+          borderColor: '#C6791A',
+          backgroundColor: 'rgba(198,121,26,0.1)',
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { font: { family: 'JetBrains Mono', size: 10 } } },
+          y: { beginAtZero: true, ticks: { font: { family: 'JetBrains Mono', size: 10 } } }
+        }
+      }
+    });
+  }
+
+  function renderBarChart(canvasId, labels, values, label, horizontal) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (charts[canvasId]) charts[canvasId].destroy();
+    charts[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label,
+          data: values,
+          backgroundColor: '#C6791A'
+        }]
+      },
+      options: {
+        indexAxis: horizontal ? 'y' : 'x',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { font: { family: 'JetBrains Mono', size: 10 } } },
+          y: { beginAtZero: true, ticks: { font: { family: 'JetBrains Mono', size: 10 } } }
+        }
+      }
+    });
+  }
+
+  function renderStackedByUseCase(rows) {
+    if (!rows || rows.length === 0) {
+      renderBarChart('useCaseChart', [], [], 'Interactions');
+      return;
+    }
+    const weeks = [...new Set(rows.map(r => formatWeek(r.week)))];
+    const useCases = [...new Set(rows.map(r => r.use_case))];
+
+    const datasets = useCases.map((uc, i) => ({
+      label: uc,
+      data: weeks.map(w => {
+        const match = rows.find(r => formatWeek(r.week) === w && r.use_case === uc);
+        return match ? parseInt(match.total_interactions) : 0;
+      }),
+      backgroundColor: amberPalette[i % amberPalette.length]
+    }));
+
+    const ctx = document.getElementById('useCaseChart').getContext('2d');
+    if (charts.useCaseChart) charts.useCaseChart.destroy();
+    charts.useCaseChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: weeks, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: { font: { family: 'JetBrains Mono', size: 10 } } },
+          y: { stacked: true, beginAtZero: true, ticks: { font: { family: 'JetBrains Mono', size: 10 } } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { font: { family: 'JetBrains Mono', size: 10 } } } }
+      }
+    });
+  }
+
+  function renderDashboard(payload) {
+    const data = payload.data || {};
+
+    // Cumulative headline score
+    const cumulative = (data.overall_score_cumulative || [])[0];
+    const headlineValue = document.getElementById('headlineValue');
+    const headlineSub = document.getElementById('headlineSub');
+    if (cumulative && cumulative.avg_overall_percent !== undefined) {
+      const pct = parseFloat(cumulative.avg_overall_percent);
+      headlineValue.textContent = pct + '%';
+      headlineValue.className = 'headline-value ' + (pct >= 80 ? 'good' : pct >= 40 ? 'mid' : 'bad');
+      headlineSub.textContent = `Across ${cumulative.total_evaluated_responses} evaluated responses`;
+    } else {
+      headlineValue.textContent = '—';
+      headlineSub.textContent = 'No evaluated responses yet';
+    }
+
+    // Weekly overall score trend
+    const scoreTrend = data.overall_score_trend || [];
+    renderLineChart('overallScoreChart', scoreTrend.map(r => formatWeek(r.week)), scoreTrend.map(r => parseFloat(r.avg_overall_percent)), 'Overall Score (%)');
+    renderTable('overallScoreTable', scoreTrend, [
+      { key: 'week', label: 'Week', format: formatWeek },
+      { key: 'avg_overall_percent', label: 'Avg Overall %', format: v => v + '%' },
+      { key: 'sample_size', label: 'Responses' }
+    ]);
+
+    const weekly = data.weekly_interactions || [];
+    renderLineChart('weeklyChart', weekly.map(r => formatWeek(r.week)), weekly.map(r => parseInt(r.total_interactions)), 'Interactions');
+    renderTable('weeklyTable', weekly, [
+      { key: 'week', label: 'Week', format: formatWeek },
+      { key: 'total_interactions', label: 'Interactions' }
+    ]);
+
+    const monthly = data.monthly_interactions || [];
+    renderLineChart('monthlyChart', monthly.map(r => formatWeek(r.month)), monthly.map(r => parseInt(r.total_interactions)), 'Interactions');
+    renderTable('monthlyTable', monthly, [
+      { key: 'month', label: 'Month', format: formatWeek },
+      { key: 'total_interactions', label: 'Interactions' }
+    ]);
+
+    const byUseCase = data.interactions_by_use_case || [];
+    renderStackedByUseCase(byUseCase);
+    renderTable('useCaseTable', byUseCase, [
+      { key: 'week', label: 'Week', format: formatWeek },
+      { key: 'use_case', label: 'Use Case' },
+      { key: 'total_interactions', label: 'Interactions' }
+    ]);
+
+    const topUsers = (data.top_users || []).slice(0, 10);
+    renderBarChart('topUsersChart', topUsers.map(r => r.user_id), topUsers.map(r => parseInt(r.total_interactions)), 'Interactions', true);
+    renderTable('topUsersTable', topUsers, [
+      { key: 'week', label: 'Week', format: formatWeek },
+      { key: 'user_id', label: 'User' },
+      { key: 'total_interactions', label: 'Interactions' }
+    ]);
+
+    const cost = data.cost_trend || [];
+    renderLineChart('costChart', cost.map(r => formatWeek(r.week)), cost.map(r => parseFloat(r.total_cost_usd)), 'Cost (USD)');
+    renderTable('costTable', cost, [
+      { key: 'week', label: 'Week', format: formatWeek },
+      { key: 'total_cost_usd', label: 'Cost (USD)', format: v => '$' + parseFloat(v).toFixed(4) }
+    ]);
+
+    const outOfScope = (data.out_of_scope_activity || []).slice(0, 10);
+    renderBarChart('outOfScopeChart', outOfScope.map(r => r.user_id), outOfScope.map(r => parseInt(r.out_of_scope_count)), 'Out-of-Scope Queries', true);
+    renderTable('outOfScopeTable', outOfScope, [
+      { key: 'week', label: 'Week', format: formatWeek },
+      { key: 'user_id', label: 'User' },
+      { key: 'out_of_scope_count', label: 'Out-of-Scope Count' }
+    ]);
+
+    const cacheAge = Math.round((Date.now() / 1000) - payload.cached_at);
+    cacheNote.textContent = payload.cached ? `Cached ${cacheAge}s ago` : `Freshly loaded`;
+
+    loadingState.classList.add('hidden');
+    errorState.classList.remove('active');
+    dashboardContent.classList.add('active');
+  }
+
+  async function loadDashboard() {
+    refreshBtn.disabled = true;
+    loadingState.classList.remove('hidden');
+    dashboardContent.classList.remove('active');
+    errorState.classList.remove('active');
+
+    try {
+      const res = await fetch(DASHBOARD_API_URL, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      const payload = await res.json();
+
+      if (!res.ok) {
+        throw new Error(payload.error || `Request failed (${res.status})`);
+      }
+
+      renderDashboard(payload);
+    } catch (err) {
+      loadingState.classList.add('hidden');
+      errorState.textContent = 'Failed to load dashboard: ' + err.message;
+      errorState.classList.add('active');
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  refreshBtn.addEventListener('click', loadDashboard);
+</script>
+</body>
+</html>
