@@ -1,0 +1,30 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults"],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["glue:GetTable", "glue:GetDatabase", "glue:GetPartitions"],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:GetBucketLocation"],
+            "Resource": [
+                "arn:aws:s3:::YOUR-ANALYTICS-BUCKET",
+                "arn:aws:s3:::YOUR-ANALYTICS-BUCKET/*",
+                "arn:aws:s3:::YOUR-ATHENA-OUTPUT-BUCKET",
+                "arn:aws:s3:::YOUR-ATHENA-OUTPUT-BUCKET/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
+            "Resource": "arn:aws:dynamodb:REGION:YOUR_ACCOUNT_ID:table/YOUR-CACHE-TABLE"
+        }
+    ]
+}
