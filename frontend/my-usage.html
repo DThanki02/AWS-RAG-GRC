@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Usage — Policy Retriever</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<style>
+  :root {
+    --bg: #FBF6EE;
+    --bg-panel: #FFFFFF;
+    --ink: #2A2018;
+    --ink-soft: #6B5D4F;
+    --amber: #C6791A;
+    --amber-deep: #9C5A0E;
+    --line: #E6DAC5;
+    --good: #4C7A4C;
+    --mid: #B08A2E;
+    --bad: #B0492E;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(198,121,26,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font-family: var(--mono);
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 100%;
+    margin: 0;
+    padding: 48px 48px 80px;
+  }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+
+  .sub {
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .back-link {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 5px;
+    text-decoration: none;
+    margin-bottom: 14px;
+    transition: all 0.15s;
+  }
+  .back-link:hover {
+    background: var(--amber);
+    border-color: var(--amber-deep);
+    color: var(--bg);
+  }
+
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(42,32,24,0.04);
+  }
+
+  .card h2 {
+    font-family: var(--serif);
+    font-size: 15px;
+    margin: 0 0 12px;
+  }
+
+  .bar-track {
+    width: 100%;
+    height: 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .bar-fill {
+    height: 100%;
+    background: var(--amber);
+    transition: width 0.3s ease;
+  }
+  .bar-fill.warn { background: var(--mid); }
+  .bar-fill.over { background: var(--bad); }
+
+  .bar-label {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+  }
+
+  .history-item {
+    border-top: 1px solid var(--line);
+  }
+  .history-item:first-child {
+    border-top: none;
+  }
+  .history-item details {
+    padding: 0;
+  }
+  .history-item summary {
+    padding: 12px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    list-style: none;
+  }
+  .history-item summary::-webkit-details-marker { display: none; }
+  .history-item summary::before {
+    content: '\25B6';
+    font-size: 9px;
+    color: var(--ink-soft);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .history-item details[open] summary::before {
+    transform: rotate(90deg);
+  }
+  .history-timestamp {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+  .history-question {
+    font-family: var(--serif);
+    font-size: 13px;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .history-answer {
+    font-family: var(--serif);
+    font-size: 12.5px;
+    color: var(--ink);
+    line-height: 1.6;
+    padding: 0 0 12px 19px;
+  }
+  .history-answer p { margin: 6px 0; }
+  .history-answer p:first-child { margin-top: 0; }
+  .history-answer ul, .history-answer ol { padding-left: 20px; margin: 6px 0; }
+  .history-answer strong { font-weight: 700; }
+  .history-answer code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  .history-scores {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .history-score-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .history-score-pill .score-val { font-weight: 700; }
+  .history-score-pill .score-val.good { color: var(--good); }
+  .history-score-pill .score-val.mid { color: var(--mid); }
+  .history-score-pill .score-val.bad { color: var(--bad); }
+  .history-empty {
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  .total-card {
+    border: 2px solid var(--amber-deep);
+    text-align: center;
+  }
+  .total-value {
+    font-family: var(--serif);
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .total-value.good { color: var(--good); }
+  .total-value.warn { color: var(--mid); }
+  .total-value.over { color: var(--bad); }
+
+  .blocked-banner {
+    display: none;
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-family: var(--mono);
+    margin-bottom: 16px;
+  }
+  .blocked-banner.warn {
+    display: block;
+    background: #FEF3E2;
+    border: 1px solid var(--mid);
+    color: #7A5A00;
+  }
+  .blocked-banner.blocked {
+    display: block;
+    background: #FBEAE3;
+    border: 1px solid var(--bad);
+    color: var(--bad);
+  }
+
+  /* Login overlay (reused pattern) */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(198,121,26,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 32px 28px;
+    box-shadow: 0 6px 24px rgba(42,32,24,0.08);
+  }
+  .login-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .login-card h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    margin: 0 0 6px;
+  }
+  .login-sub {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+  #loginForm { display: flex; flex-direction: column; gap: 10px; }
+  #loginForm input {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--ink);
+    outline: none;
+  }
+  #loginForm input:focus { border-color: var(--amber); }
+  #loginForm button {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 0;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  #loginForm button:hover { background: var(--amber-deep); }
+  .login-error {
+    display: none;
+    font-size: 11.5px;
+    color: var(--bad);
+    margin-top: 4px;
+  }
+  .login-error.active { display: block; }
+
+  .loading-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+  .loading-state.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-eyebrow">Policy Retriever</div>
+    <h2>Sign in</h2>
+    <p class="login-sub">Enter your work email and password to view your usage.</p>
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="XXXXXX" required autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+      <button type="submit" id="loginSubmitBtn">Sign in</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<div class="wrap" id="mainWrap" style="display: none;">
+  <header>
+    <a class="back-link" href="index.html">&larr; Back to Chat</a>
+    <div class="eyebrow">Personal</div>
+    <h1>My Usage</h1>
+    <div class="sub" id="userSub">Your monthly token consumption for Policy Retriever.</div>
+  </header>
+
+  <div class="loading-state" id="loadingState">Loading your usage…</div>
+
+  <div id="usageContent" style="display:none;">
+    <div class="blocked-banner" id="blockedBanner"></div>
+
+    <div class="card total-card">
+      <h2>Total Usage</h2>
+      <div class="total-value" id="totalValue">—</div>
+      <div class="bar-label" id="totalLabel">—</div>
+    </div>
+
+    <div class="card">
+      <h2>Input Tokens</h2>
+      <div class="bar-track"><div class="bar-fill" id="inputBarFill" style="width:0%;"></div></div>
+      <div class="bar-label" id="inputBarLabel">—</div>
+    </div>
+
+    <div class="card">
+      <h2>Output Tokens</h2>
+      <div class="bar-track"><div class="bar-fill" id="outputBarFill" style="width:0%;"></div></div>
+      <div class="bar-label" id="outputBarLabel">—</div>
+    </div>
+
+    <div class="card">
+      <h2>Query History</h2>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---- CONFIGURE THIS ----
+  const API_URL = "XXXXXX";
+  const COGNITO_USER_POOL_ID = "XXXXXX";
+  const COGNITO_CLIENT_ID    = "XXXXXX";
+  // -------------------------
+
+  const poolData = { UserPoolId: COGNITO_USER_POOL_ID, ClientId: COGNITO_CLIENT_ID };
+  const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  let idToken = "";
+  let userEmail = "";
+
+  const loginOverlay = document.getElementById('loginOverlay');
+  const mainWrap = document.getElementById('mainWrap');
+  const loginForm = document.getElementById('loginForm');
+  const loginEmail = document.getElementById('loginEmail');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+  const loginError = document.getElementById('loginError');
+  const userSub = document.getElementById('userSub');
+  const loadingState = document.getElementById('loadingState');
+  const usageContent = document.getElementById('usageContent');
+  const blockedBanner = document.getElementById('blockedBanner');
+  const totalValue = document.getElementById('totalValue');
+  const totalLabel = document.getElementById('totalLabel');
+  const inputBarFill = document.getElementById('inputBarFill');
+  const inputBarLabel = document.getElementById('inputBarLabel');
+  const outputBarFill = document.getElementById('outputBarFill');
+  const outputBarLabel = document.getElementById('outputBarLabel');
+
+  function handleSuccessfulAuth(result) {
+    idToken = result.getIdToken().getJwtToken();
+    const claims = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    userEmail = claims.email || loginEmail.value.trim();
+
+    loginSubmitBtn.disabled = false;
+    loginSubmitBtn.textContent = 'Sign in';
+    loginOverlay.style.display = 'none';
+    mainWrap.style.display = 'block';
+    userSub.textContent = `Usage for ${userEmail}`;
+    loadUsage();
+  }
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = loginEmail.value.trim();
+    const password = loginPassword.value;
+    if (!email || !password) return;
+
+    loginError.classList.remove('active');
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = 'Signing in…';
+
+    const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: password });
+    const cognitoUser = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
+
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: handleSuccessfulAuth,
+      onFailure: (err) => {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        loginError.textContent = err.message || 'Sign in failed. Check your email and password.';
+        loginError.classList.add('active');
+      },
+      newPasswordRequired: () => {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        const newPassword = prompt('Your password needs to be reset. Enter a new password:');
+        if (newPassword) {
+          cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
+            onSuccess: handleSuccessfulAuth,
+            onFailure: (err) => {
+              loginError.textContent = err.message || 'Password reset failed.';
+              loginError.classList.add('active');
+            }
+          });
+        }
+      }
+    });
+  });
+
+  function setBar(fillEl, labelEl, consumed, limit, name) {
+    const percent = Math.min((consumed / limit) * 100, 100);
+    fillEl.style.width = percent + '%';
+    fillEl.classList.remove('warn', 'over');
+    if (percent >= 100) fillEl.classList.add('over');
+    else if (percent >= 80) fillEl.classList.add('warn');
+    labelEl.textContent = `${consumed.toLocaleString()} / ${limit.toLocaleString()} (${percent.toFixed(1)}%)`;
+  }
+
+  async function loadUsage() {
+    try {
+      const res = await fetch(`${API_URL}?user_id=${encodeURIComponent(userEmail)}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      const data = await res.json();
+
+      loadingState.classList.add('hidden');
+
+      if (!data.available) {
+        loadingState.textContent = 'Usage tracking not available yet.';
+        loadingState.classList.remove('hidden');
+        return;
+      }
+
+      usageContent.style.display = 'block';
+
+      const percentTotal = data.percent_used || 0;
+      totalValue.textContent = percentTotal + '%';
+      totalValue.className = 'total-value ' + (percentTotal >= 80 ? 'over' : percentTotal >= 50 ? 'warn' : 'good');
+      totalLabel.textContent = `${data.consumed_tokens.toLocaleString()} / ${data.token_limit.toLocaleString()} tokens used this month`;
+
+      setBar(inputBarFill, inputBarLabel, data.consumed_input_tokens, data.input_token_limit, 'input');
+      setBar(outputBarFill, outputBarLabel, data.consumed_output_tokens, data.output_token_limit, 'output');
+
+      renderHistory(data.history || []);
+
+      blockedBanner.classList.remove('warn', 'blocked');
+      if (percentTotal >= 100) {
+        blockedBanner.textContent = 'Monthly token limit reached. You cannot ask any more queries until next month.';
+        blockedBanner.classList.add('blocked');
+      } else if (percentTotal >= 80) {
+        blockedBanner.textContent = `Warning: You have used ${percentTotal}% of your monthly token limit.`;
+        blockedBanner.classList.add('warn');
+      }
+    } catch (err) {
+      loadingState.textContent = 'Failed to load usage: ' + err.message;
+      loadingState.classList.remove('hidden');
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    if (isNaN(d)) return escapeHtml(ts);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}-${mm}-${yy} ${hh}:${min}`;
+  }
+
+  function scoreClass(v) {
+    if (v === null || v === undefined) return 'mid';
+    if (v >= 8) return 'good';
+    if (v >= 4) return 'mid';
+    return 'bad';
+  }
+
+  function renderScorePill(label, value) {
+    if (value === null || value === undefined) return '';
+    return `<span class="history-score-pill">${label}: <span class="score-val ${scoreClass(value)}">${value}/10</span></span>`;
+  }
+
+  function renderHistory(history) {
+    const historyList = document.getElementById('historyList');
+    if (!history || history.length === 0) {
+      historyList.innerHTML = '<div class="history-empty">No questions asked yet this month.</div>';
+      return;
+    }
+    historyList.innerHTML = history.map(entry => {
+      const eval_ = entry.evaluation || {};
+      const scoresHtml = [
+        renderScorePill('Faith', eval_.faithfulness),
+        renderScorePill('Ans Rel', eval_.answer_relevance),
+        renderScorePill('Ctx Rel', eval_.context_relevance),
+        renderScorePill('Overall', eval_.overall)
+      ].filter(Boolean).join('');
+
+      return `
+        <div class="history-item">
+          <details>
+            <summary>
+              <span class="history-timestamp">${formatTimestamp(entry.timestamp)}</span>
+              <span class="history-question">${escapeHtml(entry.question || '')}</span>
+              ${scoresHtml ? `<span class="history-scores">${scoresHtml}</span>` : ''}
+            </summary>
+            <div class="history-answer">${marked.parse(entry.answer || '')}</div>
+          </details>
+        </div>
+      `;
+    }).join('');
+  }
+</script>
+</body>
+</html>
