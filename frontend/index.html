@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Policy Retriever</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FBF6EE;
+    --bg-panel: #FFFFFF;
+    --ink: #2A2018;
+    --ink-soft: #6B5D4F;
+    --amber: #C6791A;
+    --amber-deep: #9C5A0E;
+    --line: #E6DAC5;
+    --good: #4C7A4C;
+    --mid: #B08A2E;
+    --bad: #B0492E;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(198,121,26,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 32px 28px;
+    box-shadow: 0 6px 24px rgba(42,32,24,0.08);
+  }
+
+  .login-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .login-card h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+
+  .login-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+
+  #loginForm {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #loginForm input {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #loginForm input:focus { border-color: var(--amber); }
+
+  #loginForm button {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    padding: 10px 0;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background 0.15s;
+  }
+  #loginForm button:hover { background: var(--amber-deep); }
+
+  .login-error {
+    display: none;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--bad);
+    margin-top: 4px;
+  }
+  .login-error.active { display: block; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(198,121,26,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font-family: var(--mono);
+    min-height: 100vh;
+  }
+
+  .app-layout {
+    display: flex;
+    height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    flex-shrink: 0;
+    transition: width 0.2s ease, padding 0.2s ease;
+    overflow: hidden;
+  }
+  .sidebar.collapsed {
+    width: 48px;
+    padding: 20px 0;
+  }
+
+  .sidebar-toggle {
+    width: 32px;
+    height: 32px;
+    margin: 0 8px 16px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .sidebar-toggle:hover {
+    background: var(--amber);
+    border-color: var(--amber-deep);
+  }
+  .sidebar-toggle:hover svg { stroke: var(--bg); }
+  .sidebar-toggle svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--ink);
+    transition: stroke 0.15s;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    text-decoration: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    text-align: left;
+    width: 100%;
+  }
+  .sidebar-item:hover {
+    background: rgba(198,121,26,0.08);
+    color: var(--amber-deep);
+  }
+  .sidebar-item svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    flex-shrink: 0;
+  }
+  .sidebar-item span {
+    opacity: 1;
+    transition: opacity 0.15s;
+  }
+  .sidebar.collapsed .sidebar-item span {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .sidebar-item.danger:hover {
+    background: rgba(176,73,46,0.08);
+    color: var(--bad);
+  }
+
+  .kb-sync-badge {
+    position: absolute;
+    top: 28px;
+    right: 48px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  /* Main content area */
+  .wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 24px 48px 0;
+  }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* Info panel (shown inline in sidebar click) */
+  .info-panel {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 360px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 20px 22px;
+    box-shadow: 0 10px 40px rgba(42,32,24,0.15);
+    z-index: 50;
+  }
+  .info-panel.active {
+    display: block;
+  }
+  .info-panel h3 {
+    font-family: var(--serif);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--amber-deep);
+    margin: 0 0 10px;
+  }
+  .info-item {
+    margin-bottom: 10px;
+  }
+  .info-item:last-child {
+    margin-bottom: 0;
+  }
+  .info-item dt {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .info-item dd {
+    font-family: var(--serif);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  .info-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(42,32,24,0.2);
+    z-index: 49;
+  }
+  .info-overlay.active {
+    display: block;
+  }
+
+  .budget-section {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .budget-section h3 {
+    margin-bottom: 8px;
+  }
+  .budget-bar-track {
+    width: 100%;
+    height: 8px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .budget-bar-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 4px 0 0 4px;
+    transition: width 0.3s ease;
+  }
+  .budget-bar-fill.warn { background: var(--mid, #B08A2E); }
+  .budget-bar-fill.over { background: var(--bad, #B0492E); }
+  .budget-label {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .sub {
+    color: var(--ink-soft);
+    font-size: 12px;
+    line-height: 1.4;
+    max-width: 70ch;
+  }
+
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 10px;
+    color: var(--ink-soft);
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    padding: 4px 8px;
+    border-radius: 3px;
+  }
+  .source-badge svg { width: 10px; height: 10px; }
+
+  /* Chat container */
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Message bubbles */
+  .message {
+    display: flex;
+    max-width: 85%;
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .message.user {
+    align-self: flex-end;
+  }
+
+  .message.assistant {
+    align-self: flex-start;
+    width: 85%;
+  }
+
+  .message-content {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 1px 3px rgba(42,32,24,0.04);
+  }
+
+  .message.user .message-content {
+    background: var(--amber);
+    color: var(--bg);
+    border-color: var(--amber-deep);
+  }
+
+  .message-text {
+    font-family: var(--serif);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink);
+    word-wrap: break-word;
+  }
+
+  .message.user .message-text {
+    color: var(--bg);
+  }
+
+  .message-text h1, .message-text h2, .message-text h3 {
+    font-family: var(--serif);
+    color: var(--amber-deep);
+    margin: 14px 0 6px;
+    line-height: 1.3;
+  }
+  .message-text h1:first-child, .message-text h2:first-child, .message-text h3:first-child {
+    margin-top: 0;
+  }
+  .message-text p { margin: 8px 0; }
+  .message-text p:first-child { margin-top: 0; }
+  .message-text p:last-child { margin-bottom: 0; }
+  .message-text ul, .message-text ol { padding-left: 22px; margin: 8px 0; }
+  .message-text strong { color: var(--ink); font-weight: 700; }
+  .message.user .message-text strong { color: var(--bg); }
+  .message-text code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Answer details */
+  .answer-details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .eval-content {
+    padding: 4px 14px 14px;
+  }
+
+  .scores-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .score-cell {
+    text-align: center;
+    padding: 8px 4px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .score-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+  .score-value {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .score-value.good { color: var(--good); }
+  .score-value.mid { color: var(--mid); }
+  .score-value.bad { color: var(--bad); }
+
+  .reasoning {
+    font-size: 11px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    font-style: italic;
+    margin-top: 8px;
+  }
+
+  .latency-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .inline-token-bar {
+    flex: 1;
+    min-width: 140px;
+  }
+  .inline-token-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    margin-bottom: 3px;
+    white-space: nowrap;
+  }
+  .inline-bar-track {
+    width: 100%;
+    height: 6px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .inline-bar-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 3px 0 0 3px;
+    transition: width 0.3s ease;
+  }
+  .inline-bar-fill.warn { background: var(--mid); }
+  .inline-bar-fill.over { background: var(--bad); }
+
+  details.chunks {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+
+  summary {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  summary:hover { color: var(--amber-deep); }
+
+  .chunk {
+    padding: 12px 14px;
+    border-top: 1px solid var(--line);
+  }
+  .chunk-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .chunk-source {
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chunk-source a { color: var(--amber-deep); text-decoration: none; }
+  .chunk-source a:hover { text-decoration: underline; }
+  .chunk-score {
+    font-family: var(--mono);
+    background: var(--bg-panel);
+    padding: 2px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+  }
+  .chunk-text {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink);
+    font-family: var(--serif);
+  }
+
+  /* Input form */
+  form {
+    display: flex;
+    gap: 10px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+
+  .input-wrap {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  textarea {
+    flex: 1;
+    resize: none;
+    min-height: 44px;
+    max-height: 120px;
+    padding: 12px 14px;
+    font-family: var(--serif);
+    font-size: 15px;
+    color: var(--ink);
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: var(--amber); }
+  textarea::placeholder { color: #B3A48F; }
+
+  .char-counter {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    text-align: right;
+    margin-top: 4px;
+  }
+  .char-counter.warn { color: var(--mid); }
+  .char-counter.over { color: var(--bad); }
+
+  button:not(.sidebar-item):not(.sidebar-toggle) {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    padding: 0 22px;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.08s;
+  }
+  button:hover:not(:disabled):not(.sidebar-item):not(.sidebar-toggle) { background: var(--amber-deep); }
+  button:active:not(:disabled):not(.sidebar-item):not(.sidebar-toggle) { transform: scale(0.97); }
+  button:disabled { opacity: 0.45; cursor: default; }
+
+  .state-row {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--ink-soft);
+    padding: 8px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    align-self: flex-start;
+    max-width: 85%;
+  }
+  .state-row.active { display: flex; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--amber);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  .budget-warning {
+    display: none;
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  .budget-warning.warn {
+    display: block;
+    background: #FEF3E2;
+    border: 1px solid var(--mid);
+    color: #7A5A00;
+  }
+  .budget-warning.blocked {
+    display: block;
+    background: #FBEAE3;
+    border: 1px solid var(--bad);
+    color: var(--bad);
+  }
+
+  .error-box {
+    display: none;
+    background: #FBEAE3;
+    border: 1px solid #E3A98E;
+    color: var(--bad);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    align-self: flex-start;
+    max-width: 85%;
+  }
+  .error-box.active { display: block; }
+
+  .answer-card {
+    display: none;
+  }
+  .answer-card.active { display: block; }
+
+  .q-echo {
+    display: none;
+  }
+
+  .answer-text {
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+
+  .divider {
+    display: none;
+  }
+
+  details.chunks.active { display: block; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--ink-soft);
+    margin: auto;
+  }
+  .empty-state .glyph {
+    font-size: 28px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+  .empty-state p {
+    font-size: 13px;
+    max-width: 40ch;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 10px;
+    color: #B3A48F;
+    padding: 12px 0;
+    flex-shrink: 0;
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+</head>
+<body>
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-eyebrow">Policy Retriever</div>
+    <h2>Sign in</h2>
+    <p class="login-sub">Enter your work email and password to continue.</p>
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="XXXXXX" required autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+      <button type="submit" id="loginSubmitBtn">Sign in</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<div class="app-layout" id="mainApp" style="display: none;">
+  <nav class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="sidebar-nav">
+      <button class="sidebar-item" id="infoBtn" title="What do the evaluation metrics mean?">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <span>Evaluation Metrics</span>
+      </button>
+      <button class="sidebar-item" id="refreshBtn" title="Clear chat and start fresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+        </svg>
+        <span>Refresh Chat</span>
+      </button>
+      <a class="sidebar-item" href="my-usage.html" title="My Usage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 20V10"/>
+          <path d="M12 20V4"/>
+          <path d="M6 20v-6"/>
+        </svg>
+        <span>My Usage</span>
+      </a>
+      <a class="sidebar-item" href="dashboard.html" title="Usage Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        <span>Usage Dashboard</span>
+      </a>
+      <button class="sidebar-item danger" id="logoutBtn" title="Sign out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        <span>Sign Out</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="info-overlay" id="infoOverlay"></div>
+  <div class="info-panel" id="infoPanel">
+    <h3>Evaluation metrics</h3>
+    <dl>
+      <div class="info-item">
+        <dt>Faithfulness</dt>
+        <dd>Is the answer entirely backed up by the retrieved context, or is the model making things up? (anti-hallucination check)</dd>
+      </div>
+      <div class="info-item">
+        <dt>Answer Relevance</dt>
+        <dd>Did the model actually answer the question, or go off on a tangent?</dd>
+      </div>
+      <div class="info-item">
+        <dt>Context Relevance</dt>
+        <dd>Did retrieval pull high-quality, relevant information, or is it full of noise? Penalizes irrelevant retrieved chunks.</dd>
+      </div>
+    </dl>
+    <div class="budget-section">
+      <h3>Monthly token usage</h3>
+      <div class="budget-bar-track">
+        <div class="budget-bar-fill" id="budgetBarFill" style="width: 0%;"></div>
+      </div>
+      <div class="budget-label" id="budgetLabel">Loading…</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <header>
+      <h1>Policy Retriever</h1>
+      <div class="sub" id="headerSub"></div>
+      <div class="kb-sync-badge" id="kbSyncBadge"></div>
+    </header>
+
+    <div class="budget-warning" id="budgetWarning"></div>
+
+    <div class="chat-container" id="chatContainer">
+      <div class="empty-state" id="emptyState">
+        <p>No messages yet. Ask something about the documents in Drive to start the conversation.</p>
+      </div>
+    </div>
+
+    <form id="qform">
+      <div class="input-wrap">
+        <textarea id="question" placeholder="Ask a question..." rows="1" maxlength="250"></textarea>
+        <div class="char-counter" id="charCounter">0 / 250</div>
+      </div>
+      <button type="submit" id="submitBtn">Send</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  // ---- CONFIGURE THIS ----
+  const API_URL = "XXXXXX";
+  const COGNITO_USER_POOL_ID = "XXXXXX"; 
+  const COGNITO_CLIENT_ID    = "XXXXXX"; 
+
+  const poolData = {
+    UserPoolId: COGNITO_USER_POOL_ID,
+    ClientId: COGNITO_CLIENT_ID
+  };
+  const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  let userEmail = "";
+  let idToken = "";
+
+  const loginOverlay = document.getElementById('loginOverlay');
+  const mainApp = document.getElementById('mainApp');
+  const loginForm = document.getElementById('loginForm');
+  const loginEmail = document.getElementById('loginEmail');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+  const loginError = document.getElementById('loginError');
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = loginEmail.value.trim();
+    const password = loginPassword.value;
+
+    if (!email || !password) return;
+
+    loginError.classList.remove('active');
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = 'Signing in…';
+
+    const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+      Username: email,
+      Password: password
+    });
+
+    const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+      Username: email,
+      Pool: userPool
+    });
+
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: (result) => {
+        idToken = result.getIdToken().getJwtToken();
+        userEmail = email;
+        document.getElementById('headerSub').textContent = userEmail;
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        loginOverlay.style.display = 'none';
+        mainApp.style.display = 'flex';
+        checkBudgetOnLogin();
+      },
+      onFailure: (err) => {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        loginError.textContent = err.message || 'Sign in failed. Check your email and password.';
+        loginError.classList.add('active');
+      },
+      newPasswordRequired: () => {
+        // Temporary password flow — prompt for a new permanent password
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+        const newPassword = prompt('Your password needs to be reset. Enter a new password:');
+        if (newPassword) {
+          cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
+            onSuccess: (result) => {
+              idToken = result.getIdToken().getJwtToken();
+              userEmail = email;
+              document.getElementById('headerSub').textContent = userEmail;
+              loginOverlay.style.display = 'none';
+              mainApp.style.display = 'flex';
+              checkBudgetOnLogin();
+            },
+            onFailure: (err) => {
+              loginError.textContent = err.message || 'Password reset failed.';
+              loginError.classList.add('active');
+            }
+          });
+        }
+      }
+    });
+  });
+
+  const form = document.getElementById('qform');
+  const textarea = document.getElementById('question');
+  const submitBtn = document.getElementById('submitBtn');
+  const chatContainer = document.getElementById('chatContainer');
+  const emptyState = document.getElementById('emptyState');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const infoBtn = document.getElementById('infoBtn');
+  const infoPanel = document.getElementById('infoPanel');
+  const budgetBarFill = document.getElementById('budgetBarFill');
+  const budgetLabel = document.getElementById('budgetLabel');
+
+  const MONTHLY_INPUT_TOKEN_MAX = 420000;
+  const MONTHLY_OUTPUT_TOKEN_MAX = 80000;
+
+  function tokenBarHtml(id, label, consumed, max) {
+    if (consumed === null || consumed === undefined) {
+      return `
+        <div class="inline-token-bar">
+          <div class="inline-token-label">${label}: —</div>
+          <div class="inline-bar-track"><div class="inline-bar-fill" style="width:0%;"></div></div>
+        </div>
+      `;
+    }
+    const percent = Math.min((consumed / max) * 100, 100);
+    const stateClass = percent >= 100 ? 'over' : percent >= 80 ? 'warn' : '';
+    return `
+      <div class="inline-token-bar">
+        <div class="inline-token-label">${label}: ${consumed.toLocaleString()} / ${max.toLocaleString()} (${percent.toFixed(1)}%)</div>
+        <div class="inline-bar-track"><div class="inline-bar-fill ${stateClass}" style="width:${percent}%;"></div></div>
+      </div>
+    `;
+  }
+
+  function logout() {
+    const currentUser = userPool.getCurrentUser();
+    if (currentUser) {
+      currentUser.signOut();
+    }
+
+    // Clear in-memory session state
+    idToken = "";
+    userEmail = "";
+    document.getElementById('headerSub').textContent = "";
+
+    // Clear the chat and reset the form
+    while (chatContainer.firstChild) {
+      chatContainer.removeChild(chatContainer.firstChild);
+    }
+    chatContainer.appendChild(emptyState);
+    emptyState.style.display = 'block';
+    textarea.value = '';
+    textarea.style.height = 'auto';
+
+    // Clear login form fields so the next sign-in starts fresh
+    loginEmail.value = '';
+    loginPassword.value = '';
+    loginError.classList.remove('active');
+    loginSubmitBtn.disabled = false;
+    loginSubmitBtn.textContent = 'Sign in';
+
+    // Start a new session for whoever logs in next
+    sessionId = generateSessionId();
+
+    mainApp.style.display = 'none';
+    loginOverlay.style.display = 'flex';
+  }
+
+  logoutBtn.addEventListener('click', logout);
+
+  const budgetWarning = document.getElementById('budgetWarning');
+
+  async function loadBudgetStatus() {
+    try {
+      const res = await fetch(`${API_URL}?user_id=${encodeURIComponent(userEmail)}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      const data = await res.json();
+
+      if (!data.available) {
+        budgetLabel.textContent = 'Budget tracking not configured.';
+        budgetBarFill.style.width = '0%';
+        return;
+      }
+
+      const percent = Math.min(data.percent_used, 100);
+      budgetBarFill.style.width = percent + '%';
+      budgetBarFill.classList.remove('warn', 'over');
+      if (percent >= 100) {
+        budgetBarFill.classList.add('over');
+      } else if (percent >= 80) {
+        budgetBarFill.classList.add('warn');
+      }
+
+      budgetLabel.textContent =
+        `${data.consumed_tokens.toLocaleString()} / ${data.token_limit.toLocaleString()} tokens (${data.percent_used}%) — ${data.month}`;
+
+      // Show warning/blocked state
+      updateBudgetWarning(data.percent_used);
+
+      if (data.kb_synced_at) {
+        const syncDate = new Date(data.kb_synced_at);
+        const opts = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Singapore', timeZoneName: 'short' };
+        document.getElementById('kbSyncBadge').textContent =
+          'KB last synced: ' + syncDate.toLocaleString('en-US', opts);
+      } else {
+        document.getElementById('kbSyncBadge').textContent = 'KB sync time unavailable';
+      }
+    } catch (err) {
+      budgetLabel.textContent = 'Unable to load token usage.';
+      document.getElementById('kbSyncBadge').textContent = 'KB sync time unavailable';
+    }
+  }
+
+  function updateBudgetWarning(percentUsed) {
+    budgetWarning.classList.remove('warn', 'blocked');
+    budgetWarning.style.display = '';
+
+    if (percentUsed >= 100) {
+      budgetWarning.textContent = 'Monthly token limit reached. You cannot ask any more queries until next month.';
+      budgetWarning.classList.add('blocked');
+      textarea.disabled = true;
+      submitBtn.disabled = true;
+      textarea.placeholder = 'Token limit reached';
+    } else if (percentUsed >= 80) {
+      budgetWarning.textContent = `Warning: You have used ${percentUsed}% of your monthly token limit.`;
+      budgetWarning.classList.add('warn');
+      textarea.disabled = false;
+      submitBtn.disabled = false;
+      textarea.placeholder = 'Ask a question...';
+    } else {
+      budgetWarning.style.display = 'none';
+      textarea.disabled = false;
+      submitBtn.disabled = false;
+      textarea.placeholder = 'Ask a question...';
+    }
+  }
+
+  async function checkBudgetOnLogin() {
+    try {
+      const res = await fetch(`${API_URL}?user_id=${encodeURIComponent(userEmail)}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      const data = await res.json();
+      if (data.available) {
+        updateBudgetWarning(data.percent_used || 0);
+      }
+      if (data.kb_synced_at) {
+        const syncDate = new Date(data.kb_synced_at);
+        const opts = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Singapore', timeZoneName: 'short' };
+        document.getElementById('kbSyncBadge').textContent =
+          'KB last synced: ' + syncDate.toLocaleString('en-US', opts);
+      } else {
+        document.getElementById('kbSyncBadge').textContent = 'KB sync time unavailable';
+      }
+    } catch (err) {}
+  }
+
+  // Sidebar toggle
+  const sidebar = document.getElementById('sidebar');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  sidebarToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+  });
+
+  // Info panel handler
+  const infoOverlay = document.getElementById('infoOverlay');
+  infoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    infoPanel.classList.toggle('active');
+    infoOverlay.classList.toggle('active');
+    if (infoPanel.classList.contains('active')) {
+      loadBudgetStatus();
+    }
+  });
+
+  infoOverlay.addEventListener('click', () => {
+    infoPanel.classList.remove('active');
+    infoOverlay.classList.remove('active');
+  });
+
+  const loadingMessages = [
+    "Searching the knowledge base…",
+  ];
+
+  function generateSessionId() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const time = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    return `${date}_${time}`;
+  }
+
+  let sessionId = generateSessionId();
+
+  // Refresh button handler
+  refreshBtn.addEventListener('click', () => {
+    // Start a new log file for the next session
+    sessionId = generateSessionId();
+
+    // Clear all messages except empty state
+    while (chatContainer.firstChild) {
+      chatContainer.removeChild(chatContainer.firstChild);
+    }
+    // Re-add empty state
+    chatContainer.appendChild(emptyState);
+    emptyState.style.display = 'block';
+    // Clear textarea
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    textarea.focus();
+  });
+
+  const charCounter = document.getElementById('charCounter');
+  function updateCharCounter() {
+    const len = textarea.value.length;
+    charCounter.textContent = `${len} / 250`;
+    charCounter.classList.remove('warn', 'over');
+    if (len >= 250) charCounter.classList.add('over');
+    else if (len >= 200) charCounter.classList.add('warn');
+  }
+
+  textarea.addEventListener('input', () => {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    updateCharCounter();
+  });
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  function scoreClass(v) {
+    if (v === null || v === undefined) return 'mid';
+    if (v >= 8) return 'good';
+    if (v >= 4) return 'mid';
+    return 'bad';
+  }
+
+  function labelFor(key) {
+    return {
+      faithfulness: 'Faithfulness',
+      answer_relevance: 'Answer Relevance',
+      context_relevance: 'Context Relevance'
+    }[key] || key;
+  }
+
+  function createUserMessage(text) {
+    const msg = document.createElement('div');
+    msg.className = 'message user';
+    msg.innerHTML = `
+      <div class="message-content">
+        <div class="message-text">${escapeHtml(text)}</div>
+      </div>
+    `;
+    return msg;
+  }
+
+  function createAssistantMessage(data) {
+    const msg = document.createElement('div');
+    msg.className = 'message assistant';
+    
+    const evalScores = data.evaluation || {};
+    const scoresHtml = ['faithfulness', 'answer_relevance', 'context_relevance']
+      .map(key => {
+        const val = evalScores[key];
+        return `
+          <div class="score-cell">
+            <div class="score-label">${labelFor(key)}</div>
+            <div class="score-value ${scoreClass(val)}">${val !== null && val !== undefined ? val + '/10' : '—'}</div>
+          </div>
+        `;
+      }).join('');
+
+    const overallVal = evalScores.overall;
+    const overallHtml = `
+      <div class="score-cell">
+        <div class="score-label">Overall</div>
+        <div class="score-value ${scoreClass(overallVal)}">${overallVal !== null && overallVal !== undefined ? overallVal + '/10' : '—'}</div>
+      </div>
+    `;
+
+    const chunks = data.retrieved_chunks || [];
+    const chunksHtml = chunks.length > 0 ? `
+      <details class="chunks">
+        <summary>Retrieved chunks (${chunks.length})</summary>
+        ${chunks.map(c => {
+          const isUrl = typeof c.source === 'string' && c.source.startsWith('http');
+          const sourceHtml = isUrl
+            ? `<a href="${escapeHtml(c.source)}" target="_blank" rel="noopener">${escapeHtml(c.source)}</a>`
+            : escapeHtml(c.source);
+          return `
+            <div class="chunk">
+              <div class="chunk-meta">
+                <span class="chunk-source">${sourceHtml}</span>
+                <span class="chunk-score">score ${c.score}</span>
+              </div>
+              <div class="chunk-text">${escapeHtml(c.content).slice(0, 400)}${c.content.length > 400 ? '…' : ''}</div>
+            </div>
+          `;
+        }).join('')}
+      </details>
+    ` : '';
+
+    msg.innerHTML = `
+      <div class="message-content">
+        <div class="message-text">${marked.parse(data.answer)}</div>
+        <div class="answer-details">
+          <div class="badge-row">
+            ${data.latency_ms !== undefined ? `<div class="latency-badge">${data.latency_ms} ms</div>` : ''}
+            ${tokenBarHtml('input', 'Monthly input', data.monthly_input_tokens, MONTHLY_INPUT_TOKEN_MAX)}
+            ${tokenBarHtml('output', 'Monthly output', data.monthly_output_tokens, MONTHLY_OUTPUT_TOKEN_MAX)}
+          </div>
+          <details class="chunks">
+            <summary>Evaluation scores</summary>
+            <div class="eval-content">
+              <div class="scores-grid">${scoresHtml}${overallHtml}</div>
+              ${evalScores.reasoning ? `<div class="reasoning">${escapeHtml(evalScores.reasoning)}</div>` : ''}
+            </div>
+          </details>
+          ${chunksHtml}
+        </div>
+      </div>
+    `;
+    return msg;
+  }
+
+  function createLoadingMessage() {
+    const msg = document.createElement('div');
+    msg.className = 'state-row active';
+    msg.id = 'loadingMessage';
+    msg.innerHTML = `
+      <span class="dot"></span>
+      <span id="loadingText">${loadingMessages[0]}</span>
+    `;
+    return msg;
+  }
+
+  function createErrorMessage(errorText) {
+    const msg = document.createElement('div');
+    msg.className = 'error-box active';
+    msg.textContent = "Something went wrong: " + errorText;
+    return msg;
+  }
+
+  function scrollToBottom() {
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const question = textarea.value.trim();
+    if (!question) return;
+
+    // Hide empty state
+    if (emptyState) {
+      emptyState.style.display = 'none';
+    }
+
+    // Add user message
+    const userMsg = createUserMessage(question);
+    chatContainer.appendChild(userMsg);
+    scrollToBottom();
+
+    // Clear textarea
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    submitBtn.disabled = true;
+
+    // Add loading indicator
+    const loadingMsg = createLoadingMessage();
+    chatContainer.appendChild(loadingMsg);
+    scrollToBottom();
+
+    // Cycle through loading messages
+    let msgIdx = 0;
+    const loadingTextEl = loadingMsg.querySelector('#loadingText');
+    const cycle = setInterval(() => {
+      msgIdx = (msgIdx + 1) % loadingMessages.length;
+      loadingTextEl.textContent = loadingMessages[msgIdx];
+    }, 1400);
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ question, session_id: sessionId, user_id: userEmail })
+      });
+
+      const data = await res.json();
+
+      // Remove loading indicator
+      loadingMsg.remove();
+
+      if (!res.ok) {
+        if (data.budget_exceeded) {
+          updateBudgetWarning(100);
+        }
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+
+      // Add assistant message
+      const assistantMsg = createAssistantMessage(data);
+      chatContainer.appendChild(assistantMsg);
+      scrollToBottom();
+
+      // Update budget warning based on new token consumption
+      if (data.monthly_input_tokens !== null && data.monthly_output_tokens !== null) {
+        const totalUsed = (data.monthly_input_tokens || 0) + (data.monthly_output_tokens || 0);
+        const totalLimit = MONTHLY_INPUT_TOKEN_MAX + MONTHLY_OUTPUT_TOKEN_MAX;
+        const pct = Math.round((totalUsed / totalLimit) * 1000) / 10;
+        updateBudgetWarning(pct);
+      }
+
+    } catch (err) {
+      // Remove loading indicator and show error
+      loadingMsg.remove();
+      const errorMsg = createErrorMessage(err.message);
+      chatContainer.appendChild(errorMsg);
+      scrollToBottom();
+    } finally {
+      clearInterval(cycle);
+      if (!textarea.disabled) submitBtn.disabled = false;
+      textarea.focus();
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.getElementById('kbSyncBadge').textContent = 'KB sync time loading…';
+
+  // Focus textarea on load
+  textarea.focus();
+</script>
+</body>
+</html>
