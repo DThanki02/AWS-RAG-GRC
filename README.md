@@ -2,7 +2,7 @@
 
 A corporate RAG (Retrieval-Augmented Generation) system that lets employees ask natural-language questions about company policy documents stored in Google Drive — with real authentication, live AI-response evaluation, per-user cost governance, and a custom analytics dashboard. Built entirely on serverless AWS.
 
-![Chat interface showing a policy question, answer, and evaluation scores](docs/screenshots/chat-with-scores.png)
+![Chat interface showing a policy question, answer, and evaluation scores](docs/screenshots/frontend-chat.png)
 
 ## Why this project
 
